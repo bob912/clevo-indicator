@@ -66,7 +66,7 @@
 
 #define EC_REG_SIZE 0x100
 #define EC_REG_CPU_TEMP 0x07
-#define EC_REG_GPU_TEMP 0xCD
+#define EC_REG_GPU_TEMP 0xCD // seems to always be zero
 #define EC_REG_FAN_DUTY 0xCE
 #define EC_REG_FAN_RPMS_HI 0xD0
 #define EC_REG_GPU_FAN_RPMS_HI 0xD2
@@ -119,14 +119,14 @@ struct {
     GtkWidget* widget;
 
 }static menuitems[] = {
-        { "Set FAN to AUTO", G_CALLBACK(ui_command_set_fan), 0, AUTO, NULL },
+        { "Set GPU FAN to AUTO", G_CALLBACK(ui_command_set_fan), 0, AUTO, NULL },
         { "", NULL, 0L, NA, NULL },
-        { "Set FAN to  0%", G_CALLBACK(ui_command_set_fan), 0, MANUAL, NULL },
-        { "Set FAN to  60%", G_CALLBACK(ui_command_set_fan), 60, MANUAL, NULL },
-        { "Set FAN to  70%", G_CALLBACK(ui_command_set_fan), 70, MANUAL, NULL },
-        { "Set FAN to  80%", G_CALLBACK(ui_command_set_fan), 80, MANUAL, NULL },
-        { "Set FAN to  90%", G_CALLBACK(ui_command_set_fan), 90, MANUAL, NULL },
-        { "Set FAN to 100%", G_CALLBACK(ui_command_set_fan), 100, MANUAL, NULL },
+        { "Set GPU FAN to   0%", G_CALLBACK(ui_command_set_fan), 0, MANUAL, NULL },
+        { "Set GPU FAN to  60%", G_CALLBACK(ui_command_set_fan), 60, MANUAL, NULL },
+        { "Set GPU FAN to  70%", G_CALLBACK(ui_command_set_fan), 70, MANUAL, NULL },
+        { "Set GPU FAN to  80%", G_CALLBACK(ui_command_set_fan), 80, MANUAL, NULL },
+        { "Set GPU FAN to  90%", G_CALLBACK(ui_command_set_fan), 90, MANUAL, NULL },
+        { "Set GPU FAN to 100%", G_CALLBACK(ui_command_set_fan), 100, MANUAL, NULL },
         { "", NULL, 0L, NA, NULL },
         { "Quit", G_CALLBACK(ui_command_quit), 0L, NA, NULL }
 };
@@ -137,13 +137,16 @@ struct {
     volatile int exit;
     volatile int cpu_temp;
     volatile int gpu_temp;
-     volatile int gpu_rpms;
+    volatile int gpu_rpms;
     volatile int fan_duty;
+    volatile int gpu_duty;
     volatile int fan_rpms;
     volatile int auto_duty;
     volatile int auto_duty_val;
     volatile int manual_next_fan_duty;
     volatile int manual_prev_fan_duty;
+    volatile int manual_next_gpu_duty;
+    volatile int manual_prev_gpu_duty;
 }static *share_info = NULL;
 
 static pid_t parent_pid = 0;
@@ -288,7 +291,7 @@ static int main_ec_worker(void) {
             break;
         case 0x100:
             share_info->cpu_temp = buf[EC_REG_CPU_TEMP];
-            share_info->gpu_temp = buf[EC_REG_GPU_TEMP];
+            share_info->gpu_temp = ec_query_gpu_temp();
             share_info->gpu_rpms = calculate_fan_rpms(buf[EC_REG_GPU_FAN_RPMS_HI],buf[EC_REG_GPU_FAN_RPMS_HI]);
             share_info->fan_duty = calculate_fan_duty(buf[EC_REG_FAN_DUTY]);
             share_info->fan_rpms = calculate_fan_rpms(buf[EC_REG_FAN_RPMS_HI],buf[EC_REG_FAN_RPMS_LO]);
@@ -496,7 +499,14 @@ static int ec_query_cpu_temp(void) {
 }
 
 static int ec_query_gpu_temp(void) {
-    return ec_io_read(EC_REG_GPU_TEMP);
+    // return ec_io_read(EC_REG_GPU_TEMP);
+	FILE* file = popen("nvidia-smi --query-gpu=temperature.gpu --format=csv,noheader", "r");
+	char buffer[3];
+	fscanf(file, "%100s", buffer);
+	pclose(file);
+	int output = atoi( buffer );
+	// printf("I think GPU temp is %d!\n", output);
+	return output;
 }
 
 static int ec_query_fan_duty(void) {
@@ -524,9 +534,9 @@ static int ec_write_fan_duty(int duty_percentage) {
     int v_i = (int) v_d;
     
     //gpu fan duty
-    ec_io_do(0x99, 0x02, v_i);
+    return ec_io_do(0x99, 0x02, v_i);
 
-    return ec_io_do(0x99, 0x01, v_i);
+    //return ec_io_do(0x99, 0x01, v_i);
 }
 
 
