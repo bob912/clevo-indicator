@@ -66,7 +66,7 @@
 
 #define EC_REG_SIZE 0x100
 #define EC_REG_CPU_TEMP 0x07
-#define EC_REG_GPU_TEMP 0xCD // seems to always be zero
+#define EC_REG_GPU_TEMP 0xCD // seems to always be zero since late 2019 updates
 #define EC_REG_FAN_DUTY 0xCE
 #define EC_REG_FAN_RPMS_HI 0xD0
 #define EC_REG_GPU_FAN_RPMS_HI 0xD2
@@ -87,6 +87,8 @@ static int main_dump_fan(void);
 static int main_test_fan(int duty_percentage);
 static gboolean ui_update(gpointer user_data);
 static void ui_command_set_fan(long fan_duty);
+static void ui_command_set_gpu(long fan_duty);
+static void ui_command_set_both(long fan_duty);
 static void ui_command_quit(gchar* command);
 static void ui_toggle_menuitems(int fan_duty);
 static void ec_on_sigterm(int signum);
@@ -119,14 +121,23 @@ struct {
     GtkWidget* widget;
 
 }static menuitems[] = {
-        { "Set GPU FAN to AUTO", G_CALLBACK(ui_command_set_fan), 0, AUTO, NULL },
+		{ "Set both FAN and GPU to AUTO", G_CALLBACK(ui_command_set_both, 0, AUTO, NULL },
         { "", NULL, 0L, NA, NULL },
-        { "Set GPU FAN to   0%", G_CALLBACK(ui_command_set_fan), 0, MANUAL, NULL },
-        { "Set GPU FAN to  60%", G_CALLBACK(ui_command_set_fan), 60, MANUAL, NULL },
-        { "Set GPU FAN to  70%", G_CALLBACK(ui_command_set_fan), 70, MANUAL, NULL },
-        { "Set GPU FAN to  80%", G_CALLBACK(ui_command_set_fan), 80, MANUAL, NULL },
-        { "Set GPU FAN to  90%", G_CALLBACK(ui_command_set_fan), 90, MANUAL, NULL },
-        { "Set GPU FAN to 100%", G_CALLBACK(ui_command_set_fan), 100, MANUAL, NULL },
+        { "Set FAN to AUTO", G_CALLBACK(ui_command_set_fan), 0, AUTO, NULL },
+        { "Set FAN to   5%", G_CALLBACK(ui_command_set_fan), 0, MANUAL, NULL },
+        { "Set FAN to  60%", G_CALLBACK(ui_command_set_fan), 60, MANUAL, NULL },
+        { "Set FAN to  70%", G_CALLBACK(ui_command_set_fan), 70, MANUAL, NULL },
+        { "Set FAN to  80%", G_CALLBACK(ui_command_set_fan), 80, MANUAL, NULL },
+        { "Set FAN to  90%", G_CALLBACK(ui_command_set_fan), 90, MANUAL, NULL },
+        { "Set FAN to 100%", G_CALLBACK(ui_command_set_fan), 100, MANUAL, NULL },
+        { "", NULL, 0L, NA, NULL },
+        { "Set GPU FAN to AUTO", G_CALLBACK(ui_command_set_gpu), 0, AUTO, NULL },
+        { "Set GPU FAN to   5%", G_CALLBACK(ui_command_set_gpu), 0, MANUAL, NULL },
+        { "Set GPU FAN to  60%", G_CALLBACK(ui_command_set_gpu), 60, MANUAL, NULL },
+        { "Set GPU FAN to  70%", G_CALLBACK(ui_command_set_gpu), 70, MANUAL, NULL },
+        { "Set GPU FAN to  80%", G_CALLBACK(ui_command_set_gpu), 80, MANUAL, NULL },
+        { "Set GPU FAN to  90%", G_CALLBACK(ui_command_set_gpu), 90, MANUAL, NULL },
+        { "Set GPU FAN to 100%", G_CALLBACK(ui_command_set_gpu), 100, MANUAL, NULL },
         { "", NULL, 0L, NA, NULL },
         { "Quit", G_CALLBACK(ui_command_quit), 0L, NA, NULL }
 };
@@ -254,11 +265,14 @@ static void main_init_share(void) {
     share_info->gpu_temp = 0;
     share_info->gpu_rpms = 0;
     share_info->fan_duty = 0;
+	share_info->gpu_duty = 0;
     share_info->fan_rpms = 0;
     share_info->auto_duty = 1;
     share_info->auto_duty_val = 0;
     share_info->manual_next_fan_duty = 0;
     share_info->manual_prev_fan_duty = 0;
+    share_info->manual_next_gpu_duty = 0;
+    share_info->manual_prev_gpu_duty = 0;
 }
 
 static int main_ec_worker(void) {
@@ -420,6 +434,27 @@ static void ui_command_set_fan(long fan_duty) {
         share_info->manual_next_fan_duty = fan_duty_val;
     }
     ui_toggle_menuitems(fan_duty_val);
+}
+
+static void ui_command_set_gpu(long gpu_duty) {
+    int gpu_duty_val = (int) gpu_duty;
+    if (gpu_duty_val == 0) {
+        printf("clicked on gpu duty auto\n");
+        share_info->auto_duty = 1;
+        share_info->auto_duty_val = 0;
+        share_info->manual_next_gpu_duty = 0;
+    } else {
+        printf("clicked on gpu duty: %d\n", gpu_duty_val);
+        share_info->auto_duty = 0;
+        share_info->auto_duty_val = 0;
+        share_info->manual_next_gpu_duty = gpu_duty_val;
+    }
+    ui_toggle_menuitems(fan_duty_val);
+}
+
+static void ui_command_set_both(long fan_duty) {
+	ui_command_set_fan(long fan_duty);
+	ui_command_set_gpu(long fan_duty);
 }
 
 static void ui_command_quit(gchar* command) {
